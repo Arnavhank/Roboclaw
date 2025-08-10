@@ -1,0 +1,158 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 #include <WiFi.h>\
+#include <WebServer.h>\
+#include <Servo.h>\
+\
+// Motor Pins\
+#define FL_IN1 14\
+#define FL_IN2 27\
+#define ML_IN1 33\
+#define ML_IN2 32\
+#define RL_IN1 23\
+#define RL_IN2 22\
+\
+#define FR_IN1 26\
+#define FR_IN2 25\
+#define MR_IN1 5\
+#define MR_IN2 4\
+#define RR_IN1 18\
+#define RR_IN2 19\
+\
+// Servo Pins\
+#define BASE_SERVO_PIN 13\
+#define SHOULDER_SERVO_PIN 12\
+#define CLAW_SERVO_PIN 21\
+\
+Servo baseServo, shoulderServo, clawServo;\
+\
+// Wi-Fi AP credentials\
+const char* ssid = "RockerGripperBot";\
+const char* password = "12345678";\
+\
+WebServer server(80);\
+\
+// Motor control functions\
+void stopMotors() \{\
+  digitalWrite(FL_IN1, LOW); digitalWrite(FL_IN2, LOW);\
+  digitalWrite(ML_IN1, LOW); digitalWrite(ML_IN2, LOW);\
+  digitalWrite(RL_IN1, LOW); digitalWrite(RL_IN2, LOW);\
+  digitalWrite(FR_IN1, LOW); digitalWrite(FR_IN2, LOW);\
+  digitalWrite(MR_IN1, LOW); digitalWrite(MR_IN2, LOW);\
+  digitalWrite(RR_IN1, LOW); digitalWrite(RR_IN2, LOW);\
+\}\
+\
+void moveForward() \{\
+  digitalWrite(FL_IN1, HIGH); digitalWrite(FL_IN2, LOW);\
+  digitalWrite(ML_IN1, HIGH); digitalWrite(ML_IN2, LOW);\
+  digitalWrite(RL_IN1, HIGH); digitalWrite(RL_IN2, LOW);\
+  digitalWrite(FR_IN1, HIGH); digitalWrite(FR_IN2, LOW);\
+  digitalWrite(MR_IN1, HIGH); digitalWrite(MR_IN2, LOW);\
+  digitalWrite(RR_IN1, HIGH); digitalWrite(RR_IN2, LOW);\
+\}\
+\
+void moveBackward() \{\
+  digitalWrite(FL_IN1, LOW); digitalWrite(FL_IN2, HIGH);\
+  digitalWrite(ML_IN1, LOW); digitalWrite(ML_IN2, HIGH);\
+  digitalWrite(RL_IN1, LOW); digitalWrite(RL_IN2, HIGH);\
+  digitalWrite(FR_IN1, LOW); digitalWrite(FR_IN2, HIGH);\
+  digitalWrite(MR_IN1, LOW); digitalWrite(MR_IN2, HIGH);\
+  digitalWrite(RR_IN1, LOW); digitalWrite(RR_IN2, HIGH);\
+\}\
+\
+void turnLeft() \{\
+  // Left wheels backward, right wheels forward\
+  digitalWrite(FL_IN1, LOW); digitalWrite(FL_IN2, HIGH);\
+  digitalWrite(ML_IN1, LOW); digitalWrite(ML_IN2, HIGH);\
+  digitalWrite(RL_IN1, LOW); digitalWrite(RL_IN2, HIGH);\
+  \
+  digitalWrite(FR_IN1, HIGH); digitalWrite(FR_IN2, LOW);\
+  digitalWrite(MR_IN1, HIGH); digitalWrite(MR_IN2, LOW);\
+  digitalWrite(RR_IN1, HIGH); digitalWrite(RR_IN2, LOW);\
+\}\
+\
+void turnRight() \{\
+  // Left wheels forward, right wheels backward\
+  digitalWrite(FL_IN1, HIGH); digitalWrite(FL_IN2, LOW);\
+  digitalWrite(ML_IN1, HIGH); digitalWrite(ML_IN2, LOW);\
+  digitalWrite(RL_IN1, HIGH); digitalWrite(RL_IN2, LOW);\
+  \
+  digitalWrite(FR_IN1, LOW); digitalWrite(FR_IN2, HIGH);\
+  digitalWrite(MR_IN1, LOW); digitalWrite(MR_IN2, HIGH);\
+  digitalWrite(RR_IN1, LOW); digitalWrite(RR_IN2, HIGH);\
+\}\
+\
+// Servo Control\
+void setPickPosition() \{\
+  baseServo.write(60);\
+  shoulderServo.write(45);\
+  clawServo.write(30); // Close claw\
+\}\
+\
+void setPlacePosition() \{\
+  baseServo.write(120);\
+  shoulderServo.write(90);\
+  clawServo.write(90); // Open claw\
+\}\
+\
+// Web Interface\
+const char* html = R"rawliteral(\
+<!DOCTYPE html><html>\
+<head><meta name='viewport' content='width=device-width, initial-scale=1'>\
+<style>\
+button \{ padding: 20px; margin: 10px; font-size: 20px; \}\
+</style>\
+</head>\
+<body style="text-align:center;">\
+<h2>Rocker-Bogie Gripper Bot</h2>\
+<button onclick="fetch('/f')">Forward</button><br>\
+<button onclick="fetch('/l')">Left</button>\
+<button onclick="fetch('/s')">Stop</button>\
+<button onclick="fetch('/r')">Right</button><br>\
+<button onclick="fetch('/b')">Backward</button><br><br>\
+<button onclick="fetch('/pick')">Pick</button>\
+<button onclick="fetch('/place')">Place</button>\
+</body></html>\
+)rawliteral";\
+\
+void setup() \{\
+  Serial.begin(115200);\
+\
+  // Motor pin setup\
+  int motorPins[] = \{FL_IN1, FL_IN2, ML_IN1, ML_IN2, RL_IN1, RL_IN2,\
+                     FR_IN1, FR_IN2, MR_IN1, MR_IN2, RR_IN1, RR_IN2\};\
+  for (int i = 0; i < 12; i++) pinMode(motorPins[i], OUTPUT);\
+  stopMotors();\
+\
+  // Servo setup\
+  baseServo.attach(BASE_SERVO_PIN);\
+  shoulderServo.attach(SHOULDER_SERVO_PIN);\
+  clawServo.attach(CLAW_SERVO_PIN);\
+  setPlacePosition();\
+\
+  // Start Wi-Fi AP\
+  WiFi.softAP(ssid, password);\
+  Serial.println("AP Started. Connect to Wi-Fi:");\
+  Serial.println(ssid);\
+\
+  // Web routes\
+  server.on("/", []() \{ server.send(200, "text/html", html); \});\
+  server.on("/f", []() \{ moveForward(); server.send(200, "text/plain", "Forward"); \});\
+  server.on("/b", []() \{ moveBackward(); server.send(200, "text/plain", "Backward"); \});\
+  server.on("/l", []() \{ turnLeft(); server.send(200, "text/plain", "Left"); \});\
+  server.on("/r", []() \{ turnRight(); server.send(200, "text/plain", "Right"); \});\
+  server.on("/s", []() \{ stopMotors(); server.send(200, "text/plain", "Stop"); \});\
+  server.on("/pick", []() \{ setPickPosition(); server.send(200, "text/plain", "Pick"); \});\
+  server.on("/place", []() \{ setPlacePosition(); server.send(200, "text/plain", "Place"); \});\
+\
+  server.begin();\
+\}\
+\
+void loop() \{\
+  server.handleClient();\
+\}}
